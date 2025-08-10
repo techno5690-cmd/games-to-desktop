@@ -39,10 +39,15 @@ DEFAULT_STEAM_DIR = (
 PIRATED_DIR = os.environ.get("PIRATED_DIR", DEFAULT_PIRATED_DIR)
 STEAM_DIR = os.environ.get("STEAM_DIR", DEFAULT_STEAM_DIR)
 
+NO_COUNTDOWN = os.environ.get("NO_COUNTDOWN", "0") not in ("", "0", "false", "False")
+NO_POPUPS = os.environ.get("NO_POPUPS", "0") not in ("", "0", "false", "False")
+
 
 def get_desktop_path() -> str:
+    override = os.environ.get("DESKTOP_DIR")
+    if override:
+        return override
     if IS_WINDOWS:
-        # Try winshell if available; otherwise fallback to USERPROFILE/Desktop
         desktop = os.path.join(os.environ.get("USERPROFILE", HOME_DIR), "Desktop")
         return desktop
     # Non-Windows: try xdg-user-dir DESKTOP
@@ -195,6 +200,9 @@ def log_action(action: str, game: str) -> None:
 
 def popup(message: str) -> None:
     """Shows a popup if Tk is available and a display is likely; otherwise prints."""
+    if NO_POPUPS:
+        print(message)
+        return
     if HAS_TK and Tk is not None and messagebox is not None:
         try:
             root = Tk()
@@ -211,9 +219,13 @@ def popup(message: str) -> None:
 # ==== MAIN ====
 if __name__ == "__main__":
     # Optional countdown
-    for i in range(3, 0, -1):
-        popup(f"Starting in {i} seconds...")
-        time.sleep(1)
+    if not NO_COUNTDOWN:
+        for i in range(3, 0, -1):
+            popup(f"Starting in {i} seconds...")
+            time.sleep(1)
+
+    print(f"Desktop path: {DESKTOP}")
+    print(f"Scanning base dirs: {[PIRATED_DIR, STEAM_DIR]}")
 
     existing_games = get_existing_desktop_games()
 
@@ -227,8 +239,14 @@ if __name__ == "__main__":
                     full = os.path.join(base_dir, entry)
                     if os.path.isdir(full):
                         all_game_dirs.append(full)
-            except Exception:
-                pass
+            except Exception as exc:
+                print(f"Failed to list {base_dir}: {exc}")
+        else:
+            print(f"Base directory not found: {base_dir}")
+
+    if not all_game_dirs:
+        print("No game directories found. Set PIRATED_DIR/STEAM_DIR environment variables.")
+        print("Example: NO_COUNTDOWN=1 NO_POPUPS=1 PIRATED_DIR=/path/to/games python3 'games to desktop.py'")
 
     for folder in all_game_dirs:
         game_name = os.path.basename(folder)
